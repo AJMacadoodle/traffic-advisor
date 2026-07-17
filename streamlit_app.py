@@ -9,7 +9,11 @@ st.write("Get effective driving advice using GPT-2")
 # Cache the model pipeline so it only loads once
 @st.cache_resource
 def load_model():
-    return pipeline("text-generation", model="gpt-2")
+    try:
+        return pipeline("text-generation", model="gpt-2")
+    except (OSError, Exception) as e:
+        st.warning("⚠️ AI model unavailable. Using heuristic-based advice instead.")
+        return None
 
 generator = load_model()
 
@@ -54,8 +58,8 @@ if st.button("Analyze Best Travel Time"):
                 f"Therefore, the best driving advice for this trip is:"
             )
             
-            results = generator(prompt, max_length=150, num_return_sequences=1, truncation=True)
-            ai_advice = results[0]["generated_text"][len(prompt):].strip()
+            results = generator(prompt, max_length=150, num_return_sequences=1, truncation=True) if generator else None
+            ai_advice = results[0]["generated_text"][len(prompt):].strip() if results else None
             
             # Display Results
             st.markdown("---")
@@ -72,6 +76,15 @@ if st.button("Analyze Best Travel Time"):
             
             # AI Synthesis
             st.markdown("**🤖 AI Travel Synthesis:**")
-            st.write(ai_advice if ai_advice else "Drive safely and maintain extra stopping distance.")
+            if ai_advice:
+                st.write(ai_advice)
+            else:
+                fallback_advice = "Based on current conditions: "
+                if is_peak:
+                    fallback_advice += "Expect significant delays during rush hour. "
+                if weather != "Clear Sky":
+                    fallback_advice += f"Exercise caution in {weather.lower()} conditions. "
+                fallback_advice += "Drive safely and maintain extra stopping distance."
+                st.write(fallback_advice)
     else:
         st.warning("Please enter your departure and destination route.")
