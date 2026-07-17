@@ -2,7 +2,7 @@ import streamlit as st
 from transformers import pipeline
 
 # Configure the page settings
-st.set_page_config(page_title="🚗 AI Traffic Advisor", page_Icon="🚦")
+st.set_page_config(page_title="🚗 AI Traffic Advisor", page_icon="🚦")
 st.title("🚗 AI Traffic Advisor")
 st.write("Get effective driving advice using GPT-2")
 
