@@ -9,13 +9,10 @@ st.write("Get effective driving advice using GPT-2")
 # Cache the model pipeline so it only loads once
 @st.cache_resource
 def load_model():
-    try:
-        return pipeline("text-generation", model="gpt-2")
-    except (OSError, Exception) as e:
-        st.warning("⚠️ AI model unavailable. Using heuristic-based advice instead.")
-        return None
+    return pipeline("text-generation", model="gpt-2")
 
-generator = load_model()
+# Do not load the model at import time. We'll load it lazily when the user
+# requests an analysis so we don't show the warning before the user interacts.
 
 # 1. User Inputs for Factors & Preferences
 st.subheader("📋 Trip Details")
@@ -50,6 +47,17 @@ elif weather == "Foggy":
 # 3. Generate Smart Advisor Response
 if st.button("Analyze Best Travel Time"):
     if route:
+        # Lazy-load the model only when the user requests an analysis so the
+        # app doesn't display a warning before interaction.
+        if "generator" not in st.session_state:
+            try:
+                with st.spinner("Loading AI model... this may take a minute"):
+                    st.session_state["generator"] = load_model()
+            except Exception:
+                st.session_state["generator"] = None
+
+        generator = st.session_state.get("generator")
+
         with st.spinner("Calculating optimal travel window..."):
             # Construct a structured prompt for GPT-2
             prompt = (
@@ -57,23 +65,32 @@ if st.button("Analyze Best Travel Time"):
                 f"Estimated Traffic Delay: {base_delay} minutes. "
                 f"Therefore, the best driving advice for this trip is:"
             )
-            
-            results = generator(prompt, max_length=150, num_return_sequences=1, truncation=True) if generator else None
-            ai_advice = results[0]["generated_text"][len(prompt):].strip() if results else None
-            
+
+            ai_advice = None
+            if generator:
+                try:
+                    results = generator(prompt, max_length=150, num_return_sequences=1, truncation=True)
+                    ai_advice = results[0]["generated_text"][len(prompt):].strip()
+                except Exception:
+                    st.warning("⚠️ AI generation failed; falling back to heuristic advice.")
+
+            # If model couldn't be loaded, inform the user and fall back
+            if generator is None:
+                st.warning("⚠️ AI model unavailable. Using heuristic-based advice instead.")
+
             # Display Results
             st.markdown("---")
             st.subheader("🚦 Advisor Assessment")
-            
+
             # Metric Callouts
             st.metric(label="Estimated Added Delay", value=f"{base_delay} mins")
-            
+
             # Alternatives Section
             if alternatives:
                 st.markdown("**💡 Recommended Alternatives:**")
                 for alt in alternatives:
                     st.write(f"- {alt}")
-            
+
             # AI Synthesis
             st.markdown("**🤖 AI Travel Synthesis:**")
             if ai_advice:
